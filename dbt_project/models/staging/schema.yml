@@ -1,0 +1,11 @@
+version: 2
+
+sources:
+  - name: govinfo       
+    database: warehouse
+    schema: main
+    tables:
+      - name: raw_bills
+      - name: raw_actions
+      - name: raw_action_committees
+      - name: raw_cosponsors
