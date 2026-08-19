@@ -1,0 +1,9 @@
+version: 2
+
+models: 
+  - name: int_action_stages
+    columns:
+      - name: canonical_stage
+        tests:
+          - accepted_values:
+              values: ['Committee', 'Floor', 'Passed Chamber', 'Became Law']
