@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -31,3 +33,19 @@ jobs:
         env:
           DBT_PROFILES_DIR: .
         run: uv run dbt build --full-refresh
+      - name: Upload warehouse to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest-data
+          files: warehouse.duckdb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit trigger file
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > data_version.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data_version.txt
+          git commit -m "chore: update data version" || echo "Nothing to commit"
+          git push
