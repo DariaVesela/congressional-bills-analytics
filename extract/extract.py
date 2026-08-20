@@ -11,6 +11,7 @@ from pydantic import BaseModel
 class Committee(BaseModel):
     systemCode: str
     name: str
+    order: int
 
 
 class Action(BaseModel):
@@ -44,12 +45,14 @@ class Bill(BaseModel):
 
 # ---------- Parsers ----------
 
-def parse_committee(item: ET.Element) -> Committee:
+def parse_committee(item: ET.Element, order: int) -> Committee:
     system_code_el = item.find("systemCode")
     assert system_code_el is not None, "no systemCode found"
+    system_code = system_code_el.text
     name_el = item.find("name")
     assert name_el is not None, "no name found"
-    return Committee(systemCode=system_code_el.text, name=name_el.text)
+    name = name_el.text
+    return Committee(systemCode=system_code, name=name, order=order)
 
 
 def parse_action(item: ET.Element) -> Action:
@@ -70,9 +73,9 @@ def parse_action(item: ET.Element) -> Action:
 
     committees_el = item.find("committees")
     committees = (
-        [parse_committee(c) for c in committees_el.findall("item")]
-        if committees_el is not None else []
-    )
+    [parse_committee(c, order=i) for i, c in enumerate(committees_el.findall("item"))]
+    if committees_el is not None else []
+)
 
     return Action(
         date=date_el.text, text=text_el.text, type=type_el.text,
@@ -164,7 +167,7 @@ def load_to_duckdb(bills: list[Bill], db_path: str = "../warehouse.duckdb") -> N
     con = duckdb.connect(db_path)
     con.execute("CREATE OR REPLACE TABLE raw_bills (bill_id VARCHAR, congress INTEGER, bill_type VARCHAR, number VARCHAR, origin_chamber VARCHAR, introduced_date VARCHAR, sponsor_bioguide_id VARCHAR, sponsor_full_name VARCHAR, sponsor_party VARCHAR, primary_policy_area VARCHAR)")
     con.execute("CREATE OR REPLACE TABLE raw_actions (action_id VARCHAR, bill_id VARCHAR, action_date VARCHAR, text VARCHAR, type VARCHAR, action_code VARCHAR, source_system VARCHAR)")
-    con.execute("CREATE OR REPLACE TABLE raw_action_committees (action_id VARCHAR, bill_id VARCHAR, system_code VARCHAR, name VARCHAR)")
+    con.execute("CREATE OR REPLACE TABLE raw_action_committees (action_id VARCHAR, bill_id VARCHAR, system_code VARCHAR, name VARCHAR, committee_order INTEGER)")
     con.execute("CREATE OR REPLACE TABLE raw_cosponsors (bill_id VARCHAR, bioguide_id VARCHAR, full_name VARCHAR, party VARCHAR)")
 
     bills_rows, actions_rows, committees_rows, cosponsors_rows = [], [], [], []
@@ -175,13 +178,13 @@ def load_to_duckdb(bills: list[Bill], db_path: str = "../warehouse.duckdb") -> N
             action_id = f"{bill_id}-a{i}"
             actions_rows.append((action_id, bill_id, action.date, action.text, action.type, action.action_code, action.source_system))
             for c in action.committees:
-                committees_rows.append((action_id, bill_id, c.systemCode, c.name))
+                committees_rows.append((action_id, bill_id, c.systemCode, c.name, c.order))
         for cs in bill.cosponsors:
             cosponsors_rows.append((bill_id, cs.bioguideId, cs.fullName, cs.party))
 
     con.executemany("INSERT INTO raw_bills VALUES (?,?,?,?,?,?,?,?,?,?)", bills_rows)
     con.executemany("INSERT INTO raw_actions VALUES (?,?,?,?,?,?,?)", actions_rows)
-    con.executemany("INSERT INTO raw_action_committees VALUES (?,?,?,?)", committees_rows)
+    con.executemany("INSERT INTO raw_action_committees VALUES (?,?,?,?,?)", committees_rows)
     con.executemany("INSERT INTO raw_cosponsors VALUES (?,?,?,?)", cosponsors_rows)
     con.close()
     print(f"Loaded {len(bills_rows)} bills, {len(actions_rows)} actions, {len(committees_rows)} committee links, {len(cosponsors_rows)} cosponsors")

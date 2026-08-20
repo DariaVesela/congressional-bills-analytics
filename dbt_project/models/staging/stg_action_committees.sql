@@ -9,7 +9,8 @@ renamed as (
     action_id,
     bill_id,
     system_code,
-    name as committee_name
+    name as committee_name,
+    committee_order
     from source
     )
 
