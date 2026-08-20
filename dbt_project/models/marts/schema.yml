@@ -1,0 +1,11 @@
+
+version: 2
+
+models:
+  - name: fct_bill_actions
+    columns:
+      - name: bill_id
+        tests:
+          - relationships:
+              to: ref('dim_bills')
+              field: bill_id
