@@ -1,10 +1,10 @@
-import requests
 import xml.etree.ElementTree as ET
-import duckdb
 from typing import Optional
-from config import BASE_URL, COLLECTION, CONGRESS, BILL_TYPES
-from pydantic import BaseModel
 
+import duckdb
+import requests
+from config import BASE_URL, BILL_TYPES, COLLECTION, CONGRESS
+from pydantic import BaseModel
 
 # ---------- Models ----------
 
@@ -152,7 +152,7 @@ def extract_all_bills(limit_per_type: Optional[int] = None) -> list[Bill]:
                 response = requests.get(f["link"], timeout=30)
                 response.raise_for_status()
                 bills.append(parse_bill(ET.fromstring(response.content)))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — deliberate: one bad bill logs and continues, per E01-S05
                 errors.append((f["link"], str(e)))
 
     print(f"Extracted {len(bills)} bills, {len(errors)} errors")
