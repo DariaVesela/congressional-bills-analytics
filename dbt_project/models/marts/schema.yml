@@ -9,3 +9,15 @@ models:
           - relationships:
               to: ref('dim_bills')
               field: bill_id
+      - name: action_id
+        tests:
+          - not_null
+          - unique
+    
+
+  - name: dim_bills
+    columns:
+     - name: bill_id
+       tests:
+        - not_null
+        - unique

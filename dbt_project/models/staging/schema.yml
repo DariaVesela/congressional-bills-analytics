@@ -9,3 +9,49 @@ sources:
       - name: raw_actions
       - name: raw_action_committees
       - name: raw_cosponsors
+
+
+models:
+  - name: stg_bills
+    columns:
+      - name: bill_id
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_actions
+    columns:
+      - name: action_id
+        tests:
+          - not_null
+          - unique
+      - name: bill_id
+        tests:
+          - not_null
+
+  - name: stg_action_committees
+    columns:
+      - name: action_id
+        tests:
+          - not_null
+      - name: bill_id
+        tests:
+          - not_null
+      - name: system_code
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - action_id
+            - system_code
+
+  - name: stg_cosponsors
+    columns:
+      - name: bill_id
+        tests:
+          - not_null
+      - name: bioguide_id
+        tests:
+          - not_null
+
