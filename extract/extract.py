@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 # ---------- Models ----------
 
+
 class Committee(BaseModel):
     systemCode: str
     name: str
@@ -45,6 +46,7 @@ class Bill(BaseModel):
 
 # ---------- Parsers ----------
 
+
 def parse_committee(item: ET.Element, order: int) -> Committee:
     system_code_el = item.find("systemCode")
     assert system_code_el is not None, "no systemCode found"
@@ -73,13 +75,20 @@ def parse_action(item: ET.Element) -> Action:
 
     committees_el = item.find("committees")
     committees = (
-    [parse_committee(c, order=i) for i, c in enumerate(committees_el.findall("item"))]
-    if committees_el is not None else []
-)
+        [
+            parse_committee(c, order=i)
+            for i, c in enumerate(committees_el.findall("item"))
+        ]
+        if committees_el is not None
+        else []
+    )
 
     return Action(
-        date=date_el.text, text=text_el.text, type=type_el.text,
-        action_code=action_code, source_system=source_system_name_el.text,
+        date=date_el.text,
+        text=text_el.text,
+        type=type_el.text,
+        action_code=action_code,
+        source_system=source_system_name_el.text,
         committees=committees,
     )
 
@@ -91,7 +100,9 @@ def parse_cosponsor(item: ET.Element) -> Cosponsor:
     assert full_name_el is not None, "no fullName found"
     party_el = item.find("party")
     assert party_el is not None, "no party found"
-    return Cosponsor(bioguideId=bioguide_id_el.text, fullName=full_name_el.text, party=party_el.text)
+    return Cosponsor(
+        bioguideId=bioguide_id_el.text, fullName=full_name_el.text, party=party_el.text
+    )
 
 
 def parse_bill(root: ET.Element) -> Bill:
@@ -110,10 +121,18 @@ def parse_bill(root: ET.Element) -> Bill:
             primary_policy_area = name_el.text
 
     actions_el = bill_el.find("actions")
-    actions = [parse_action(i) for i in actions_el.findall("item")] if actions_el is not None else []
+    actions = (
+        [parse_action(i) for i in actions_el.findall("item")]
+        if actions_el is not None
+        else []
+    )
 
     cosponsors_el = bill_el.find("cosponsors")
-    cosponsors = [parse_cosponsor(i) for i in cosponsors_el.findall("item")] if cosponsors_el is not None else []
+    cosponsors = (
+        [parse_cosponsor(i) for i in cosponsors_el.findall("item")]
+        if cosponsors_el is not None
+        else []
+    )
 
     return Bill(
         congress=int(bill_el.find("congress").text),
@@ -131,6 +150,7 @@ def parse_bill(root: ET.Element) -> Bill:
 
 
 # ---------- Extraction ----------
+
 
 def fetch_directory_listing(bill_type: str) -> dict:
     url = f"{BASE_URL}/json/{COLLECTION}/{CONGRESS}/{bill_type}"
@@ -163,31 +183,69 @@ def extract_all_bills(limit_per_type: Optional[int] = None) -> list[Bill]:
 
 # ---------- Load ----------
 
+
 def load_to_duckdb(bills: list[Bill], db_path: str = "../warehouse.duckdb") -> None:
     con = duckdb.connect(db_path)
-    con.execute("CREATE OR REPLACE TABLE raw_bills (bill_id VARCHAR, congress INTEGER, bill_type VARCHAR, number VARCHAR, origin_chamber VARCHAR, introduced_date VARCHAR, sponsor_bioguide_id VARCHAR, sponsor_full_name VARCHAR, sponsor_party VARCHAR, primary_policy_area VARCHAR)")
-    con.execute("CREATE OR REPLACE TABLE raw_actions (action_id VARCHAR, bill_id VARCHAR, action_date VARCHAR, text VARCHAR, type VARCHAR, action_code VARCHAR, source_system VARCHAR)")
-    con.execute("CREATE OR REPLACE TABLE raw_action_committees (action_id VARCHAR, bill_id VARCHAR, system_code VARCHAR, name VARCHAR, committee_order INTEGER)")
-    con.execute("CREATE OR REPLACE TABLE raw_cosponsors (bill_id VARCHAR, bioguide_id VARCHAR, full_name VARCHAR, party VARCHAR)")
+    con.execute(
+        "CREATE OR REPLACE TABLE raw_bills (bill_id VARCHAR, congress INTEGER, bill_type VARCHAR, number VARCHAR, origin_chamber VARCHAR, introduced_date VARCHAR, sponsor_bioguide_id VARCHAR, sponsor_full_name VARCHAR, sponsor_party VARCHAR, primary_policy_area VARCHAR)"
+    )
+    con.execute(
+        "CREATE OR REPLACE TABLE raw_actions (action_id VARCHAR, bill_id VARCHAR, action_date VARCHAR, text VARCHAR, type VARCHAR, action_code VARCHAR, source_system VARCHAR)"
+    )
+    con.execute(
+        "CREATE OR REPLACE TABLE raw_action_committees (action_id VARCHAR, bill_id VARCHAR, system_code VARCHAR, name VARCHAR, committee_order INTEGER)"
+    )
+    con.execute(
+        "CREATE OR REPLACE TABLE raw_cosponsors (bill_id VARCHAR, bioguide_id VARCHAR, full_name VARCHAR, party VARCHAR)"
+    )
 
     bills_rows, actions_rows, committees_rows, cosponsors_rows = [], [], [], []
     for bill in bills:
         bill_id = f"{bill.bill_type}{bill.number}-{bill.congress}"
-        bills_rows.append((bill_id, bill.congress, bill.bill_type, bill.number, bill.origin_chamber, bill.introduced_date, bill.sponsor_bioguide_id, bill.sponsor_full_name, bill.sponsor_party, bill.primary_policy_area))
+        bills_rows.append(
+            (
+                bill_id,
+                bill.congress,
+                bill.bill_type,
+                bill.number,
+                bill.origin_chamber,
+                bill.introduced_date,
+                bill.sponsor_bioguide_id,
+                bill.sponsor_full_name,
+                bill.sponsor_party,
+                bill.primary_policy_area,
+            )
+        )
         for i, action in enumerate(bill.actions):
             action_id = f"{bill_id}-a{i}"
-            actions_rows.append((action_id, bill_id, action.date, action.text, action.type, action.action_code, action.source_system))
+            actions_rows.append(
+                (
+                    action_id,
+                    bill_id,
+                    action.date,
+                    action.text,
+                    action.type,
+                    action.action_code,
+                    action.source_system,
+                )
+            )
             for c in action.committees:
-                committees_rows.append((action_id, bill_id, c.systemCode, c.name, c.order))
+                committees_rows.append(
+                    (action_id, bill_id, c.systemCode, c.name, c.order)
+                )
         for cs in bill.cosponsors:
             cosponsors_rows.append((bill_id, cs.bioguideId, cs.fullName, cs.party))
 
     con.executemany("INSERT INTO raw_bills VALUES (?,?,?,?,?,?,?,?,?,?)", bills_rows)
     con.executemany("INSERT INTO raw_actions VALUES (?,?,?,?,?,?,?)", actions_rows)
-    con.executemany("INSERT INTO raw_action_committees VALUES (?,?,?,?,?)", committees_rows)
+    con.executemany(
+        "INSERT INTO raw_action_committees VALUES (?,?,?,?,?)", committees_rows
+    )
     con.executemany("INSERT INTO raw_cosponsors VALUES (?,?,?,?)", cosponsors_rows)
     con.close()
-    print(f"Loaded {len(bills_rows)} bills, {len(actions_rows)} actions, {len(committees_rows)} committee links, {len(cosponsors_rows)} cosponsors")
+    print(
+        f"Loaded {len(bills_rows)} bills, {len(actions_rows)} actions, {len(committees_rows)} committee links, {len(cosponsors_rows)} cosponsors"
+    )
 
 
 if __name__ == "__main__":

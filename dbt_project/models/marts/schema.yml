@@ -21,3 +21,6 @@ models:
        tests:
         - not_null
         - unique
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "bipartisan_cosponsor_count <= cosponsor_count"
