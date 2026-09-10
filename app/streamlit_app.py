@@ -31,3 +31,4 @@ col4.metric(
     "Median Days to First Action",
     round(queries.get_median_days_to_first_committee_action(con)),
 )
+

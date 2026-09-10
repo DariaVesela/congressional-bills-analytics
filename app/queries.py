@@ -1,3 +1,5 @@
+import pandas as pd
+
 def get_total_bills_tracked(con) -> int:
     return con.sql("SELECT COUNT(*) FROM dim_bills").fetchone()[0]
 
@@ -40,4 +42,41 @@ def get_median_days_to_first_committee_action(con) -> float:
         JOIN dim_bills
         USING (bill_id)
     """).fetchone()[0]
+    return result
+
+def get_bill_volume_by_policy(con) -> pd.DataFrame:
+    result = con.sql("""
+        SELECT COUNT(*) AS bill_volume,
+        primary_policy_area
+        FROM dim_bills
+        GROUP BY primary_policy_area 
+        ORDER BY bill_volume DESC LIMIT 10
+    """).df()
+    return result
+
+def get_median_days_to_furthest_stage_by_policy(con) -> pd.DataFrame:
+    result = con.sql("""
+        WITH furthest_action AS (
+            SELECT
+                bill_id, stage_order, action_date,
+                ROW_NUMBER() OVER (
+                    PARTITION BY bill_id
+                    ORDER BY stage_order DESC, action_date DESC
+                ) AS rn
+            FROM fct_bill_actions
+        ),
+        furthest_stage_date AS (
+            SELECT bill_id, action_date AS furthest_date
+            FROM furthest_action
+            WHERE rn = 1
+        )
+        SELECT
+            dim_bills.primary_policy_area,
+            MEDIAN(date_diff('day', dim_bills.introduced_date, furthest_stage_date.furthest_date)) AS median_days,
+            COUNT(*) AS bill_count
+        FROM furthest_stage_date
+        JOIN dim_bills USING (bill_id)
+        GROUP BY dim_bills.primary_policy_area
+        ORDER BY median_days ASC
+    """).df()
     return result
