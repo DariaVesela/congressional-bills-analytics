@@ -1,8 +1,16 @@
 import duckdb
-import queries
 import requests
 import streamlit as st
+import plotly.express as px
 from config import WAREHOUSE_URL
+from queries import (
+    get_total_bills_tracked,
+    get_percent_advanced,
+    get_percent_became_law,
+    get_median_days_to_first_committee_action,
+    get_bill_volume_by_policy,
+    get_median_days_to_furthest_stage_by_policy,
+)
 
 
 @st.cache_resource  # download data once, store it
@@ -23,12 +31,36 @@ st.title("US Bills Progression Analysis")
 
 con = get_connection()
 
+# --- KPI strip ---
+
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Bills Tracked", queries.get_total_bills_tracked(con))
-col2.metric("Bills Past Committee", f"{queries.get_percent_advanced(con):.0f}%")
-col3.metric("Became Law", f"{queries.get_percent_became_law(con):.0f}%")
+col1.metric("Bills Tracked", get_total_bills_tracked(con))
+col2.metric("Bills Past Committee", f"{get_percent_advanced(con):.0f}%")
+col3.metric("Became Law", f"{get_percent_became_law(con):.0f}%")
 col4.metric(
     "Median Days to First Action",
-    round(queries.get_median_days_to_first_committee_action(con)),
+    round(get_median_days_to_first_committee_action(con)),
 )
 
+# --- Graph 2: bill volume by policy area ---
+volume_df = get_bill_volume_by_policy(con)
+fig_volume = px.bar(
+    volume_df,
+    x="primary_policy_area",
+    y="bill_volume",
+    labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
+)
+st.plotly_chart(fig_volume)
+
+# --- Graph 3: median days to furthest stage by policy area ---
+speed_df = get_median_days_to_furthest_stage_by_policy(con)
+fig_speed = px.bar(
+    speed_df,
+    x="primary_policy_area",
+    y="median_days",
+    color="bill_count",
+    color_continuous_scale="Blues",
+    hover_data=["bill_count"],
+    labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
+)
+st.plotly_chart(fig_speed)
