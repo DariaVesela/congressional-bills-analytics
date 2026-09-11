@@ -1,7 +1,9 @@
 import duckdb
 import requests
+import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 from config import WAREHOUSE_URL
 from queries import (
     get_total_bills_tracked,
@@ -10,6 +12,7 @@ from queries import (
     get_median_days_to_first_committee_action,
     get_bill_volume_by_policy,
     get_median_days_to_furthest_stage_by_policy,
+    get_stage_distribution
 )
 
 
@@ -41,6 +44,45 @@ col4.metric(
     "Median Days to First Action",
     round(get_median_days_to_first_committee_action(con)),
 )
+
+# --- Graph 4: sankey chart showing bill progression ---
+
+def build_sankey_figure(stage_df: pd.DataFrame):
+    counts = dict(zip(stage_df["furthest_stage_order"], stage_df["bill_count"]))
+    committee = counts.get(2, 0)
+    floor = counts.get(3, 0)
+    passed = counts.get(4, 0)
+    became_law = counts.get(5, 0)
+
+    reached_floor_or_beyond = floor + passed + became_law
+    reached_passed_or_beyond = passed + became_law
+
+    labels = [
+        "Committee", "Floor", "Passed Chamber", "Became Law",
+        "Stalled at Committee", "Stalled at Floor", "Stalled after Passing",
+    ]
+    #            0            1          2                3            4                       5                   6
+
+    fig = go.Figure(go.Sankey(
+        node=dict(label=labels, pad=20, thickness=20),
+        link=dict(
+            source=[0, 0, 1, 1, 2, 2],
+            target=[1, 4, 2, 5, 3, 6],
+            value=[
+                reached_floor_or_beyond,   # Committee -> Floor
+                committee,                  # Committee -> Stalled at Committee
+                reached_passed_or_beyond,  # Floor -> Passed Chamber
+                floor,                      # Floor -> Stalled at Floor
+                became_law,                 # Passed Chamber -> Became Law
+                passed,                     # Passed Chamber -> Stalled after Passing
+            ],
+        ),
+    ))
+    return fig
+
+stage_df = get_stage_distribution(con)
+fig_sankey = build_sankey_figure(stage_df)
+st.plotly_chart(fig_sankey)
 
 # --- Graph 2: bill volume by policy area ---
 volume_df = get_bill_volume_by_policy(con)

@@ -80,3 +80,15 @@ def get_median_days_to_furthest_stage_by_policy(con) -> pd.DataFrame:
         ORDER BY median_days ASC
     """).df()
     return result
+
+def get_stage_distribution(con) -> pd.DataFrame:
+    result = con.sql("""
+        SELECT
+            furthest_stage_order,
+            furthest_stage_reached,
+            COUNT(*) AS bill_count
+        FROM dim_bills
+        GROUP BY furthest_stage_order, furthest_stage_reached
+        ORDER BY furthest_stage_order
+    """).df()
+    return result
