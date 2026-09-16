@@ -92,3 +92,41 @@ def get_stage_distribution(con) -> pd.DataFrame:
         ORDER BY furthest_stage_order
     """).df()
     return result
+
+def get_stage_transition_durations(con) -> pd.DataFrame:
+    result = con.sql("""
+        WITH per_bill_stage_dates AS (
+            SELECT
+                bill_id,
+                MIN(action_date) FILTER (WHERE stage_order = 2) AS committee_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 3) AS floor_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 4) AS passed_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 5) AS became_law_entry
+            FROM fct_bill_actions
+            GROUP BY bill_id
+        ),
+        transition_durations AS (
+            SELECT
+                bill_id,
+                date_diff('day', committee_entry, floor_entry) AS committee_to_floor_days,
+                date_diff('day', floor_entry, passed_entry) AS floor_to_passed_days,
+                date_diff('day', passed_entry, became_law_entry) AS passed_to_law_days
+            FROM per_bill_stage_dates
+        ),
+        labeled_durations AS (
+            SELECT 'Committee' AS stage, committee_to_floor_days AS days FROM transition_durations
+            UNION ALL
+            SELECT 'Floor' AS stage, floor_to_passed_days AS days FROM transition_durations
+            UNION ALL
+            SELECT 'Passed Chamber' AS stage, passed_to_law_days AS days FROM transition_durations
+        )
+        SELECT
+            stage,
+            MEDIAN(days) AS median_days,
+            PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY days) AS p90_days,
+            COUNT(days) AS sample_size
+        FROM labeled_durations
+        WHERE days IS NOT NULL
+        GROUP BY stage
+    """).df()
+    return result

@@ -12,7 +12,8 @@ from queries import (
     get_median_days_to_first_committee_action,
     get_bill_volume_by_policy,
     get_median_days_to_furthest_stage_by_policy,
-    get_stage_distribution
+    get_stage_distribution,
+    get_stage_transition_durations
 )
 
 
@@ -106,3 +107,13 @@ fig_speed = px.bar(
     labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
 )
 st.plotly_chart(fig_speed)
+
+bottleneck_df = get_stage_transition_durations(con)
+fig_bottleneck = px.bar(
+    bottleneck_df,
+    x="stage",
+    y=["median_days", "p90_days"],
+    barmode="group",
+    labels={"stage": "Stage", "value": "Days", "variable": ""},
+)
+st.plotly_chart(fig_bottleneck)
