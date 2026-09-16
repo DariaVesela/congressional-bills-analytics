@@ -1,3 +1,6 @@
+import pandas as pd
+
+
 def get_total_bills_tracked(con) -> int:
     return con.sql("SELECT COUNT(*) FROM dim_bills").fetchone()[0]
 
@@ -40,4 +43,91 @@ def get_median_days_to_first_committee_action(con) -> float:
         JOIN dim_bills
         USING (bill_id)
     """).fetchone()[0]
+    return result
+
+def get_bill_volume_by_policy(con) -> pd.DataFrame:
+    result = con.sql("""
+        SELECT COUNT(*) AS bill_volume,
+        primary_policy_area
+        FROM dim_bills
+        GROUP BY primary_policy_area 
+        ORDER BY bill_volume DESC LIMIT 10
+    """).df()
+    return result
+
+def get_median_days_to_furthest_stage_by_policy(con) -> pd.DataFrame:
+    result = con.sql("""
+        WITH furthest_action AS (
+            SELECT
+                bill_id, stage_order, action_date,
+                ROW_NUMBER() OVER (
+                    PARTITION BY bill_id
+                    ORDER BY stage_order DESC, action_date DESC
+                ) AS rn
+            FROM fct_bill_actions
+        ),
+        furthest_stage_date AS (
+            SELECT bill_id, action_date AS furthest_date
+            FROM furthest_action
+            WHERE rn = 1
+        )
+        SELECT
+            dim_bills.primary_policy_area,
+            MEDIAN(date_diff('day', dim_bills.introduced_date, furthest_stage_date.furthest_date)) AS median_days,
+            COUNT(*) AS bill_count
+        FROM furthest_stage_date
+        JOIN dim_bills USING (bill_id)
+        GROUP BY dim_bills.primary_policy_area
+        ORDER BY median_days ASC
+    """).df()
+    return result
+
+def get_stage_distribution(con) -> pd.DataFrame:
+    result = con.sql("""
+        SELECT
+            furthest_stage_order,
+            furthest_stage_reached,
+            COUNT(*) AS bill_count
+        FROM dim_bills
+        GROUP BY furthest_stage_order, furthest_stage_reached
+        ORDER BY furthest_stage_order
+    """).df()
+    return result
+
+def get_stage_transition_durations(con) -> pd.DataFrame:
+    result = con.sql("""
+        WITH per_bill_stage_dates AS (
+            SELECT
+                bill_id,
+                MIN(action_date) FILTER (WHERE stage_order = 2) AS committee_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 3) AS floor_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 4) AS passed_entry,
+                MIN(action_date) FILTER (WHERE stage_order = 5) AS became_law_entry
+            FROM fct_bill_actions
+            GROUP BY bill_id
+        ),
+        transition_durations AS (
+            SELECT
+                bill_id,
+                date_diff('day', committee_entry, floor_entry) AS committee_to_floor_days,
+                date_diff('day', floor_entry, passed_entry) AS floor_to_passed_days,
+                date_diff('day', passed_entry, became_law_entry) AS passed_to_law_days
+            FROM per_bill_stage_dates
+        ),
+        labeled_durations AS (
+            SELECT 'Committee' AS stage, committee_to_floor_days AS days FROM transition_durations
+            UNION ALL
+            SELECT 'Floor' AS stage, floor_to_passed_days AS days FROM transition_durations
+            UNION ALL
+            SELECT 'Passed Chamber' AS stage, passed_to_law_days AS days FROM transition_durations
+        )
+        SELECT
+            stage,
+            MEDIAN(days) AS median_days,
+            PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY days) AS p90_days,
+            COUNT(days) AS sample_size
+        FROM labeled_durations
+        WHERE days IS NOT NULL
+        GROUP BY stage
+    """).df()
     return result
