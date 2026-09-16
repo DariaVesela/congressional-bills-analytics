@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def get_total_bills_tracked(con) -> int:
     return con.sql("SELECT COUNT(*) FROM dim_bills").fetchone()[0]
 

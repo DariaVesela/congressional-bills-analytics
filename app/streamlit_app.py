@@ -1,19 +1,19 @@
 import duckdb
-import requests
 import pandas as pd
-import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import requests
+import streamlit as st
 from config import WAREHOUSE_URL
 from queries import (
-    get_total_bills_tracked,
+    get_bill_volume_by_policy,
+    get_median_days_to_first_committee_action,
+    get_median_days_to_furthest_stage_by_policy,
     get_percent_advanced,
     get_percent_became_law,
-    get_median_days_to_first_committee_action,
-    get_bill_volume_by_policy,
-    get_median_days_to_furthest_stage_by_policy,
     get_stage_distribution,
-    get_stage_transition_durations
+    get_stage_transition_durations,
+    get_total_bills_tracked,
 )
 
 
@@ -65,19 +65,19 @@ def build_sankey_figure(stage_df: pd.DataFrame):
     #            0            1          2                3            4                       5                   6
 
     fig = go.Figure(go.Sankey(
-        node=dict(label=labels, pad=20, thickness=20),
-        link=dict(
-            source=[0, 0, 1, 1, 2, 2],
-            target=[1, 4, 2, 5, 3, 6],
-            value=[
-                reached_floor_or_beyond,   # Committee -> Floor
-                committee,                  # Committee -> Stalled at Committee
-                reached_passed_or_beyond,  # Floor -> Passed Chamber
-                floor,                      # Floor -> Stalled at Floor
-                became_law,                 # Passed Chamber -> Became Law
-                passed,                     # Passed Chamber -> Stalled after Passing
-            ],
-        ),
+        node={"label": labels, "pad": 20, "thickness": 20},
+        link={
+                "source": [0, 0, 1, 1, 2, 2],
+                "target": [1, 4, 2, 5, 3, 6],
+                "value": [
+                    reached_floor_or_beyond,   # Committee -> Floor
+                    committee,                  # Committee -> Stalled at Committee
+                    reached_passed_or_beyond,  # Floor -> Passed Chamber
+                    floor,                      # Floor -> Stalled at Floor
+                    became_law,                 # Passed Chamber -> Became Law
+                    passed,                     # Passed Chamber -> Stalled after Passing
+    ],
+},
     ))
     return fig
 
