@@ -4,6 +4,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from captions import (
+    describe_bill_volume,
+    describe_prioritization,
+    describe_speed_by_policy,
+    describe_stage_bottleneck,
+    describe_stage_distribution,
+)
 from config import WAREHOUSE_URL
 from queries import (
     BILL_STATUSES,
@@ -132,6 +139,7 @@ def build_sankey_figure(stage_df: pd.DataFrame):
 stage_df = get_stage_distribution(con, filters)
 fig_sankey = build_sankey_figure(stage_df)
 st.plotly_chart(fig_sankey)
+st.caption(describe_stage_distribution(stage_df))
 
 # --- Graph 2: bill volume by policy area ---
 volume_df = get_bill_volume_by_policy(con, filters)
@@ -142,6 +150,7 @@ fig_volume = px.bar(
     labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
 )
 st.plotly_chart(fig_volume)
+st.caption(describe_bill_volume(volume_df))
 
 # --- Graph 3: median days to furthest stage by policy area ---
 speed_df = get_median_days_to_furthest_stage_by_policy(con, filters)
@@ -155,6 +164,7 @@ fig_speed = px.bar(
     labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
 )
 st.plotly_chart(fig_speed)
+st.caption(describe_speed_by_policy(speed_df))
 
 bottleneck_df = get_stage_transition_durations(con, filters)
 fig_bottleneck = px.bar(
@@ -165,6 +175,7 @@ fig_bottleneck = px.bar(
     labels={"stage": "Stage", "value": "Days", "variable": ""},
 )
 st.plotly_chart(fig_bottleneck)
+st.caption(describe_stage_bottleneck(bottleneck_df))
 
 scatter_df = get_committee_prioritization(con, filters)
 
@@ -182,3 +193,4 @@ fig_prioritization = px.scatter(
     },
 )
 st.plotly_chart(fig_prioritization)
+st.caption(describe_prioritization(scatter_df))
