@@ -14,6 +14,7 @@ from queries import (
     get_stage_distribution,
     get_stage_transition_durations,
     get_total_bills_tracked,
+    get_committee_prioritization
 )
 
 
@@ -117,3 +118,20 @@ fig_bottleneck = px.bar(
     labels={"stage": "Stage", "value": "Days", "variable": ""},
 )
 st.plotly_chart(fig_bottleneck)
+
+scatter_df = get_committee_prioritization(con)
+
+fig_prioritization = px.scatter(
+    scatter_df,
+    x="median_dwell_days",
+    y="advancement_rate",
+    size="bill_count",
+    hover_name="primary_policy_area",
+    hover_data=["bill_count"],
+    labels={
+        "median_dwell_days": "Median days in Committee",
+        "advancement_rate": "Advancement rate (%)",
+        "primary_policy_area": "Policy area",
+    },
+)
+st.plotly_chart(fig_prioritization)

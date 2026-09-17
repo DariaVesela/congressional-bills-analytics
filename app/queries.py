@@ -1,6 +1,5 @@
 import pandas as pd
 
-
 def get_total_bills_tracked(con) -> int:
     return con.sql("SELECT COUNT(*) FROM dim_bills").fetchone()[0]
 
@@ -129,5 +128,45 @@ def get_stage_transition_durations(con) -> pd.DataFrame:
         FROM labeled_durations
         WHERE days IS NOT NULL
         GROUP BY stage
+    """).df()
+    return result
+
+def get_committee_prioritization(con) -> pd.DataFrame:
+    result = con.sql("""
+        WITH advancement AS (
+            SELECT
+                primary_policy_area,
+                AVG(CASE WHEN furthest_stage_order > 2 THEN 1.0 ELSE 0.0 END) * 100 AS advancement_rate,
+                COUNT(*) AS bill_count
+            FROM dim_bills
+            GROUP BY primary_policy_area
+        ),
+        per_bill_dwell AS (
+            SELECT
+                bill_id,
+                date_diff(
+                    'day',
+                    MIN(action_date) FILTER (WHERE stage_order = 2),
+                    MIN(action_date) FILTER (WHERE stage_order = 3)
+                ) AS dwell_days
+            FROM fct_bill_actions
+            GROUP BY bill_id
+        ),
+        dwell_by_policy AS (
+            SELECT
+                dim_bills.primary_policy_area,
+                MEDIAN(per_bill_dwell.dwell_days) AS median_dwell_days
+            FROM per_bill_dwell
+            JOIN dim_bills USING (bill_id)
+            WHERE per_bill_dwell.dwell_days IS NOT NULL
+            GROUP BY dim_bills.primary_policy_area
+        )
+        SELECT
+            advancement.primary_policy_area,
+            advancement.advancement_rate,
+            advancement.bill_count,
+            dwell_by_policy.median_dwell_days
+        FROM advancement
+        LEFT JOIN dwell_by_policy USING (primary_policy_area)
     """).df()
     return result
