@@ -293,6 +293,22 @@ with row1_col2.container(border=True):
             labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
             height=CHART_HEIGHT,
         )
+        # The ~23 long, rotated policy-area labels eat most of the figure's
+        # vertical space via Plotly's automargin, which shrinks the plot
+        # domain the colorbar's "len" is a *fraction of* down to a few
+        # pixels. Pin the colorbar to an absolute pixel length instead so it
+        # stays readable regardless of how much room the x-axis needs.
+        fig_speed.update_layout(
+            coloraxis_colorbar={
+                "len": 220,
+                "lenmode": "pixels",
+                "thickness": 15,
+                "thicknessmode": "pixels",
+                "tickfont": {"size": 11},
+                "y": 1,
+                "yanchor": "top",
+            }
+        )
         st.plotly_chart(fig_speed, use_container_width=True, key="speed_bar")
     with tab_lollipop:
         # Horizontal layout (policy areas on the y-axis) sidesteps the same
