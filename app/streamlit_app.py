@@ -32,6 +32,16 @@ from queries import (
 CHAMBERS = ["House", "Senate"]
 PARTY_LABELS = {"D": "Democrat", "R": "Republican", "I": "Independent"}
 
+# Single categorical blue, used for every single-series chart so the dashboard
+# reads as one system rather than each chart picking its own default hue.
+BLUE = "#2a78d6"
+ORANGE = "#eb6834"
+BLUE_SCALE = [[0, "#cde2fb"], [1, "#0d366b"]]  # sequential: magnitude, light -> dark
+MUTED = "#898781"
+CHART_HEIGHT = 380
+
+px.defaults.template = "plotly_white"
+
 
 def _format_percent(value):
     return "N/A" if value is None else f"{value:.0f}%"
@@ -48,10 +58,14 @@ def get_connection():
 
 st.set_page_config(
     page_title="US Bills Progression Analysis",
-    layout="centered",
-    initial_sidebar_state="auto",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
-st.title("US Bills Progression Analysis")
+st.title("🏛️ US Bills Progression Analysis")
+st.caption(
+    "Tracking bills through the 119th Congress, from introduction through "
+    "committee, floor action, and passage."
+)
 
 con = get_connection()
 
@@ -89,19 +103,30 @@ filters = Filters(
     introduced_before=introduced_before,
 )
 
-# --- KPI strip ---
+# --- KPI strip: 4 cards ---
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Bills Tracked", get_total_bills_tracked(con, filters))
-col2.metric("Bills Past Committee", _format_percent(get_percent_advanced(con, filters)))
-col3.metric("Became Law", _format_percent(get_percent_became_law(con, filters)))
 median_days = get_median_days_to_first_committee_action(con, filters)
-col4.metric(
-    "Median Days to First Action",
-    round(median_days) if median_days is not None else "N/A",
-)
 
-# --- Graph 4: sankey chart showing bill progression ---
+kpis = [
+    ("Bills Tracked", get_total_bills_tracked(con, filters)),
+    ("Bills Past Committee", _format_percent(get_percent_advanced(con, filters))),
+    ("Became Law", _format_percent(get_percent_became_law(con, filters))),
+    (
+        "Median Days to First Action",
+        round(median_days) if median_days is not None else "N/A",
+    ),
+]
+for col, (label, value) in zip(st.columns(4), kpis):
+    with col.container(border=True):
+        st.metric(label, value)
+
+st.divider()
+
+# --- Bill progression (Sankey) — full-width narrative centerpiece ---
+
+st.subheader("🔀 Bill Progression")
+st.caption("Where tracked bills currently stand, from introduction through becoming law.")
+
 
 def build_sankey_figure(stage_df: pd.DataFrame):
     counts = dict(zip(stage_df["furthest_stage_order"], stage_df["bill_count"]))
@@ -119,8 +144,12 @@ def build_sankey_figure(stage_df: pd.DataFrame):
     ]
     #            0            1          2                3            4                       5                   6
 
+    # Progression nodes (0-3) step through the sequential blue ramp, darkest at
+    # "Became Law"; stalled/exit nodes (4-6) recede in a shared neutral gray.
+    node_colors = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b", MUTED, MUTED, MUTED]
+
     fig = go.Figure(go.Sankey(
-        node={"label": labels, "pad": 20, "thickness": 20},
+        node={"label": labels, "color": node_colors, "pad": 20, "thickness": 20},
         link={
                 "source": [0, 0, 1, 1, 2, 2],
                 "target": [1, 4, 2, 5, 3, 6],
@@ -134,63 +163,88 @@ def build_sankey_figure(stage_df: pd.DataFrame):
     ],
 },
     ))
+    fig.update_layout(height=CHART_HEIGHT, margin={"t": 10, "b": 10})
     return fig
 
-stage_df = get_stage_distribution(con, filters)
-fig_sankey = build_sankey_figure(stage_df)
-st.plotly_chart(fig_sankey)
-st.caption(describe_stage_distribution(stage_df))
 
-# --- Graph 2: bill volume by policy area ---
-volume_df = get_bill_volume_by_policy(con, filters)
-fig_volume = px.bar(
-    volume_df,
-    x="primary_policy_area",
-    y="bill_volume",
-    labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
-)
-st.plotly_chart(fig_volume)
-st.caption(describe_bill_volume(volume_df))
+with st.container(border=True):
+    stage_df = get_stage_distribution(con, filters)
+    fig_sankey = build_sankey_figure(stage_df)
+    st.plotly_chart(fig_sankey, use_container_width=True)
+    st.caption(describe_stage_distribution(stage_df))
 
-# --- Graph 3: median days to furthest stage by policy area ---
-speed_df = get_median_days_to_furthest_stage_by_policy(con, filters)
-fig_speed = px.bar(
-    speed_df,
-    x="primary_policy_area",
-    y="median_days",
-    color="bill_count",
-    color_continuous_scale="Blues",
-    hover_data=["bill_count"],
-    labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
-)
-st.plotly_chart(fig_speed)
-st.caption(describe_speed_by_policy(speed_df))
+st.divider()
 
-bottleneck_df = get_stage_transition_durations(con, filters)
-fig_bottleneck = px.bar(
-    bottleneck_df,
-    x="stage",
-    y=["median_days", "p90_days"],
-    barmode="group",
-    labels={"stage": "Stage", "value": "Days", "variable": ""},
-)
-st.plotly_chart(fig_bottleneck)
-st.caption(describe_stage_bottleneck(bottleneck_df))
+# --- Supporting graphs: 2x2 grid for direct side-by-side comparison ---
 
-scatter_df = get_committee_prioritization(con, filters)
+st.subheader("📊 Policy Area Breakdown")
+st.caption("Volume, speed, bottlenecks, and prioritization across policy areas.")
 
-fig_prioritization = px.scatter(
-    scatter_df,
-    x="median_dwell_days",
-    y="advancement_rate",
-    size="bill_count",
-    hover_name="primary_policy_area",
-    hover_data=["bill_count"],
-    labels={
-        "median_dwell_days": "Median days in Committee",
-        "advancement_rate": "Advancement rate (%)",
-        "primary_policy_area": "Policy area",
-    },
-)
-st.plotly_chart(fig_prioritization)
-st.caption(describe_prioritization(scatter_df))
+row1_col1, row1_col2 = st.columns(2)
+row2_col1, row2_col2 = st.columns(2)
+
+with row1_col1.container(border=True):
+    st.markdown("**Bill Volume by Policy Area**")
+    volume_df = get_bill_volume_by_policy(con, filters)
+    fig_volume = px.bar(
+        volume_df,
+        x="primary_policy_area",
+        y="bill_volume",
+        color_discrete_sequence=[BLUE],
+        labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
+        height=CHART_HEIGHT,
+    )
+    st.plotly_chart(fig_volume, use_container_width=True)
+    st.caption(describe_bill_volume(volume_df))
+
+with row1_col2.container(border=True):
+    st.markdown("**Speed to Furthest Stage**")
+    speed_df = get_median_days_to_furthest_stage_by_policy(con, filters)
+    fig_speed = px.bar(
+        speed_df,
+        x="primary_policy_area",
+        y="median_days",
+        color="bill_count",
+        color_continuous_scale=BLUE_SCALE,
+        hover_data=["bill_count"],
+        labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
+        height=CHART_HEIGHT,
+    )
+    st.plotly_chart(fig_speed, use_container_width=True)
+    st.caption(describe_speed_by_policy(speed_df))
+
+with row2_col1.container(border=True):
+    st.markdown("**Stage Bottlenecks**")
+    bottleneck_df = get_stage_transition_durations(con, filters)
+    fig_bottleneck = px.bar(
+        bottleneck_df,
+        x="stage",
+        y=["median_days", "p90_days"],
+        barmode="group",
+        color_discrete_sequence=[BLUE, ORANGE],
+        labels={"stage": "Stage", "value": "Days", "variable": ""},
+        height=CHART_HEIGHT,
+    )
+    st.plotly_chart(fig_bottleneck, use_container_width=True)
+    st.caption(describe_stage_bottleneck(bottleneck_df))
+
+with row2_col2.container(border=True):
+    st.markdown("**Committee Prioritization**")
+    scatter_df = get_committee_prioritization(con, filters)
+    fig_prioritization = px.scatter(
+        scatter_df,
+        x="median_dwell_days",
+        y="advancement_rate",
+        size="bill_count",
+        color_discrete_sequence=[BLUE],
+        hover_name="primary_policy_area",
+        hover_data=["bill_count"],
+        labels={
+            "median_dwell_days": "Median days in Committee",
+            "advancement_rate": "Advancement rate (%)",
+            "primary_policy_area": "Policy area",
+        },
+        height=CHART_HEIGHT,
+    )
+    st.plotly_chart(fig_prioritization, use_container_width=True)
+    st.caption(describe_prioritization(scatter_df))
