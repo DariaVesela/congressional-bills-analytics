@@ -47,6 +47,10 @@ def _format_percent(value):
     return "N/A" if value is None else f"{value:.0f}%"
 
 
+def _show_table(df: pd.DataFrame, rename: dict):
+    st.dataframe(df.rename(columns=rename), use_container_width=True, hide_index=True)
+
+
 @st.cache_resource  # download data once, store it
 def get_connection():
     response = requests.get(WAREHOUSE_URL, timeout=30)
@@ -169,8 +173,20 @@ def build_sankey_figure(stage_df: pd.DataFrame):
 
 with st.container(border=True):
     stage_df = get_stage_distribution(con, filters)
-    fig_sankey = build_sankey_figure(stage_df)
-    st.plotly_chart(fig_sankey, use_container_width=True)
+    # A Sankey has no meaningful alternate chart type, so this is chart + table only.
+    tab_chart, tab_table = st.tabs(["Chart", "Table"])
+    with tab_chart:
+        fig_sankey = build_sankey_figure(stage_df)
+        st.plotly_chart(fig_sankey, use_container_width=True, key="sankey_chart")
+    with tab_table:
+        _show_table(
+            stage_df,
+            {
+                "furthest_stage_order": "Stage order",
+                "furthest_stage_reached": "Furthest stage",
+                "bill_count": "Bills",
+            },
+        )
     st.caption(describe_stage_distribution(stage_df))
 
 st.divider()
@@ -186,52 +202,135 @@ row2_col1, row2_col2 = st.columns(2)
 with row1_col1.container(border=True):
     st.markdown("**Bill Volume by Policy Area**")
     volume_df = get_bill_volume_by_policy(con, filters)
-    fig_volume = px.bar(
-        volume_df,
-        x="primary_policy_area",
-        y="bill_volume",
-        color_discrete_sequence=[BLUE],
-        labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
-        height=CHART_HEIGHT,
-    )
-    st.plotly_chart(fig_volume, use_container_width=True)
+    tab_bar, tab_hbar, tab_treemap, tab_table = st.tabs(["Bar", "Horizontal Bar", "Treemap", "Table"])
+    with tab_bar:
+        fig_volume = px.bar(
+            volume_df,
+            x="primary_policy_area",
+            y="bill_volume",
+            color_discrete_sequence=[BLUE],
+            labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
+            height=CHART_HEIGHT,
+        )
+        st.plotly_chart(fig_volume, use_container_width=True, key="volume_bar")
+    with tab_hbar:
+        # Horizontal orientation sidesteps the ~45deg rotated category labels
+        # the vertical version above has with 10 policy areas on the x-axis.
+        fig_volume_h = px.bar(
+            volume_df,
+            x="bill_volume",
+            y="primary_policy_area",
+            orientation="h",
+            color_discrete_sequence=[BLUE],
+            labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
+            height=CHART_HEIGHT,
+        )
+        fig_volume_h.update_layout(yaxis={"categoryorder": "total ascending"})
+        st.plotly_chart(fig_volume_h, use_container_width=True, key="volume_hbar")
+    with tab_treemap:
+        fig_volume_treemap = px.treemap(
+            volume_df,
+            path=["primary_policy_area"],
+            values="bill_volume",
+            color="bill_volume",
+            color_continuous_scale=BLUE_SCALE,
+            labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
+            height=CHART_HEIGHT,
+        )
+        fig_volume_treemap.update_layout(margin={"t": 10, "b": 10, "l": 10, "r": 10})
+        st.plotly_chart(fig_volume_treemap, use_container_width=True, key="volume_treemap")
+    with tab_table:
+        _show_table(volume_df, {"primary_policy_area": "Policy area", "bill_volume": "Bills"})
     st.caption(describe_bill_volume(volume_df))
+
+def build_lollipop_figure(speed_df: pd.DataFrame):
+    df = speed_df.sort_values("median_days")
+    fig = go.Figure()
+    for _, row in df.iterrows():
+        fig.add_shape(
+            type="line",
+            x0=0, x1=row["median_days"],
+            y0=row["primary_policy_area"], y1=row["primary_policy_area"],
+            line={"color": MUTED, "width": 2},
+        )
+    fig.add_trace(go.Scatter(
+        x=df["median_days"],
+        y=df["primary_policy_area"],
+        mode="markers",
+        marker={"size": 10, "color": BLUE},
+        customdata=df["bill_count"],
+        hovertemplate="%{y}<br>Median days: %{x}<br>Bills: %{customdata}<extra></extra>",
+    ))
+    fig.update_layout(
+        height=CHART_HEIGHT,
+        xaxis_title="Median days",
+        yaxis_title="Policy area",
+        showlegend=False,
+        margin={"t": 10, "b": 10},
+    )
+    return fig
+
 
 with row1_col2.container(border=True):
     st.markdown("**Speed to Furthest Stage**")
     speed_df = get_median_days_to_furthest_stage_by_policy(con, filters)
-    fig_speed = px.bar(
-        speed_df,
-        x="primary_policy_area",
-        y="median_days",
-        color="bill_count",
-        color_continuous_scale=BLUE_SCALE,
-        hover_data=["bill_count"],
-        labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
-        height=CHART_HEIGHT,
-    )
-    st.plotly_chart(fig_speed, use_container_width=True)
+    tab_bar, tab_lollipop, tab_table = st.tabs(["Bar", "Lollipop", "Table"])
+    with tab_bar:
+        fig_speed = px.bar(
+            speed_df,
+            x="primary_policy_area",
+            y="median_days",
+            color="bill_count",
+            color_continuous_scale=BLUE_SCALE,
+            hover_data=["bill_count"],
+            labels={"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
+            height=CHART_HEIGHT,
+        )
+        st.plotly_chart(fig_speed, use_container_width=True, key="speed_bar")
+    with tab_lollipop:
+        # Horizontal layout (policy areas on the y-axis) sidesteps the same
+        # rotated-label problem as the horizontal bar in the Volume section.
+        fig_speed_lollipop = build_lollipop_figure(speed_df)
+        st.plotly_chart(fig_speed_lollipop, use_container_width=True, key="speed_lollipop")
+    with tab_table:
+        _show_table(
+            speed_df,
+            {"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
+        )
     st.caption(describe_speed_by_policy(speed_df))
 
 with row2_col1.container(border=True):
     st.markdown("**Stage Bottlenecks**")
     bottleneck_df = get_stage_transition_durations(con, filters)
-    fig_bottleneck = px.bar(
-        bottleneck_df,
-        x="stage",
-        y=["median_days", "p90_days"],
-        barmode="group",
-        color_discrete_sequence=[BLUE, ORANGE],
-        labels={"stage": "Stage", "value": "Days", "variable": ""},
-        height=CHART_HEIGHT,
-    )
-    st.plotly_chart(fig_bottleneck, use_container_width=True)
+    # A true box plot (full distribution) is a stretch goal deferred until a
+    # query change returns raw per-bill durations instead of pre-aggregated
+    # median/p90 — see E05-S07F. Chart + table only for now.
+    tab_bar, tab_table = st.tabs(["Bar", "Table"])
+    with tab_bar:
+        fig_bottleneck = px.bar(
+            bottleneck_df,
+            x="stage",
+            y=["median_days", "p90_days"],
+            barmode="group",
+            color_discrete_sequence=[BLUE, ORANGE],
+            labels={"stage": "Stage", "value": "Days", "variable": ""},
+            height=CHART_HEIGHT,
+        )
+        st.plotly_chart(fig_bottleneck, use_container_width=True, key="bottleneck_bar")
+    with tab_table:
+        _show_table(
+            bottleneck_df,
+            {
+                "stage": "Stage",
+                "median_days": "Median days",
+                "p90_days": "90th percentile days",
+                "sample_size": "Sample size",
+            },
+        )
     st.caption(describe_stage_bottleneck(bottleneck_df))
 
-with row2_col2.container(border=True):
-    st.markdown("**Committee Prioritization**")
-    scatter_df = get_committee_prioritization(con, filters)
-    fig_prioritization = px.scatter(
+def build_prioritization_scatter(scatter_df: pd.DataFrame):
+    return px.scatter(
         scatter_df,
         x="median_dwell_days",
         y="advancement_rate",
@@ -246,5 +345,48 @@ with row2_col2.container(border=True):
         },
         height=CHART_HEIGHT,
     )
-    st.plotly_chart(fig_prioritization, use_container_width=True)
+
+
+def build_quadrant_figure(scatter_df: pd.DataFrame):
+    fig = build_prioritization_scatter(scatter_df)
+
+    valid = scatter_df.dropna(subset=["median_dwell_days"])
+    if valid.empty:
+        return fig
+
+    median_x = valid["median_dwell_days"].median()
+    median_y = scatter_df["advancement_rate"].median()
+    fig.add_vline(x=median_x, line_dash="dot", line_color=MUTED)
+    fig.add_hline(y=median_y, line_dash="dot", line_color=MUTED)
+
+    x_min, x_max = valid["median_dwell_days"].min(), valid["median_dwell_days"].max()
+    y_min, y_max = scatter_df["advancement_rate"].min(), scatter_df["advancement_rate"].max()
+    label_style = {"showarrow": False, "font": {"color": MUTED, "size": 11}}
+    fig.add_annotation(x=x_min, y=y_max, xanchor="left", yanchor="top", text="Fast-tracked", **label_style)
+    fig.add_annotation(x=x_max, y=y_max, xanchor="right", yanchor="top", text="Slow but advancing", **label_style)
+    fig.add_annotation(x=x_min, y=y_min, xanchor="left", yanchor="bottom", text="Quick dead-ends", **label_style)
+    fig.add_annotation(x=x_max, y=y_min, xanchor="right", yanchor="bottom", text="Bottlenecked", **label_style)
+    return fig
+
+
+with row2_col2.container(border=True):
+    st.markdown("**Committee Prioritization**")
+    scatter_df = get_committee_prioritization(con, filters)
+    tab_scatter, tab_quadrant, tab_table = st.tabs(["Scatter", "Quadrant View", "Table"])
+    with tab_scatter:
+        st.plotly_chart(
+            build_prioritization_scatter(scatter_df), use_container_width=True, key="prioritization_scatter"
+        )
+    with tab_quadrant:
+        st.plotly_chart(build_quadrant_figure(scatter_df), use_container_width=True, key="prioritization_quadrant")
+    with tab_table:
+        _show_table(
+            scatter_df,
+            {
+                "primary_policy_area": "Policy area",
+                "advancement_rate": "Advancement rate (%)",
+                "bill_count": "Bills",
+                "median_dwell_days": "Median days in Committee",
+            },
+        )
     st.caption(describe_prioritization(scatter_df))
