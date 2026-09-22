@@ -212,7 +212,7 @@ def get_stage_transition_durations(con, filters: Optional[Filters] = None) -> pd
         SELECT
             stage,
             MEDIAN(days) AS median_days,
-            PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY days) AS p90_days,
+            PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY days) AS slowest_10pct_days,
             COUNT(days) AS sample_size
         FROM labeled_durations
         WHERE days IS NOT NULL
