@@ -49,6 +49,20 @@ def _format_percent(value):
     return "N/A" if value is None else f"{value:.0f}%"
 
 
+# Height of a 2-line st.caption (measured: 22px for 1 line, 45px for 2).
+# Reserving this fixed amount for every graph's caption stops card height
+# from depending on how long the dynamically-generated caption text is —
+# otherwise a card whose caption happens to wrap to 2 lines ends up taller
+# than one whose caption fits on 1, even with every chart/table pinned to
+# the same CHART_HEIGHT.
+CAPTION_HEIGHT = 45
+
+
+def _caption(text: str):
+    with st.container(height=CAPTION_HEIGHT, border=False):
+        st.caption(text)
+
+
 def _show_table(df: pd.DataFrame, rename: dict, column_config: Optional[dict] = None):
     # Pinned to CHART_HEIGHT so a table tab is the same size as its card's
     # chart tabs — st.dataframe otherwise sizes itself to the row count,
@@ -199,7 +213,7 @@ with st.container(border=True):
                 "bill_count": "Bills",
             },
         )
-    st.caption(describe_stage_distribution(stage_df))
+    _caption(describe_stage_distribution(stage_df))
 
 st.divider()
 
@@ -253,7 +267,7 @@ with row1_col1.container(border=True):
         st.plotly_chart(fig_volume_treemap, use_container_width=True, key="volume_treemap")
     with tab_table:
         _show_table(volume_df, {"primary_policy_area": "Policy area", "bill_volume": "Bills"})
-    st.caption(describe_bill_volume(volume_df))
+    _caption(describe_bill_volume(volume_df))
 
 def build_lollipop_figure(speed_df: pd.DataFrame):
     df = speed_df.sort_values("median_days")
@@ -325,7 +339,7 @@ with row1_col2.container(border=True):
             speed_df,
             {"primary_policy_area": "Policy area", "median_days": "Median days", "bill_count": "Bills"},
         )
-    st.caption(describe_speed_by_policy(speed_df))
+    _caption(describe_speed_by_policy(speed_df))
 
 with row2_col1.container(border=True):
     st.markdown("**Stage Bottlenecks**")
@@ -355,7 +369,7 @@ with row2_col1.container(border=True):
                 "sample_size": "Sample size",
             },
         )
-    st.caption(describe_stage_bottleneck(bottleneck_df))
+    _caption(describe_stage_bottleneck(bottleneck_df))
 
 def build_prioritization_scatter(scatter_df: pd.DataFrame):
     return px.scatter(
@@ -418,4 +432,4 @@ with row2_col2.container(border=True):
             },
             column_config={"Advancement rate (%)": st.column_config.NumberColumn(format="%.1f")},
         )
-    st.caption(describe_prioritization(scatter_df))
+    _caption(describe_prioritization(scatter_df))
