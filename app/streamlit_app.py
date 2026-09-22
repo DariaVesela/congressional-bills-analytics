@@ -228,7 +228,7 @@ row2_col1, row2_col2 = st.columns(2)
 with row1_col1.container(border=True):
     st.markdown("**Bill Volume by Policy Area**")
     volume_df = get_bill_volume_by_policy(con, filters)
-    tab_bar, tab_hbar, tab_treemap, tab_table = st.tabs(["Bar", "Horizontal Bar", "Treemap", "Table"])
+    tab_bar, tab_treemap, tab_table = st.tabs(["Bar", "Treemap", "Table"])
     with tab_bar:
         fig_volume = px.bar(
             volume_df,
@@ -239,20 +239,6 @@ with row1_col1.container(border=True):
             height=CHART_HEIGHT,
         )
         st.plotly_chart(fig_volume, use_container_width=True, key="volume_bar")
-    with tab_hbar:
-        # Horizontal orientation sidesteps the ~45deg rotated category labels
-        # the vertical version above has with 10 policy areas on the x-axis.
-        fig_volume_h = px.bar(
-            volume_df,
-            x="bill_volume",
-            y="primary_policy_area",
-            orientation="h",
-            color_discrete_sequence=[BLUE],
-            labels={"primary_policy_area": "Policy area", "bill_volume": "Bills"},
-            height=CHART_HEIGHT,
-        )
-        fig_volume_h.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig_volume_h, use_container_width=True, key="volume_hbar")
     with tab_treemap:
         fig_volume_treemap = px.treemap(
             volume_df,
