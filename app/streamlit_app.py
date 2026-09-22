@@ -1,3 +1,5 @@
+from typing import Optional
+
 import duckdb
 import pandas as pd
 import plotly.express as px
@@ -47,8 +49,13 @@ def _format_percent(value):
     return "N/A" if value is None else f"{value:.0f}%"
 
 
-def _show_table(df: pd.DataFrame, rename: dict):
-    st.dataframe(df.rename(columns=rename), use_container_width=True, hide_index=True)
+def _show_table(df: pd.DataFrame, rename: dict, column_config: Optional[dict] = None):
+    st.dataframe(
+        df.rename(columns=rename),
+        use_container_width=True,
+        hide_index=True,
+        column_config=column_config,
+    )
 
 
 @st.cache_resource  # download data once, store it
@@ -388,5 +395,6 @@ with row2_col2.container(border=True):
                 "bill_count": "Bills",
                 "median_dwell_days": "Median days in Committee",
             },
+            column_config={"Advancement rate (%)": st.column_config.NumberColumn(format="%.1f")},
         )
     st.caption(describe_prioritization(scatter_df))
