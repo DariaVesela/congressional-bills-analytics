@@ -346,18 +346,23 @@ with row2_col1.container(border=True):
     bottleneck_df = get_stage_transition_durations(con, filters)
     # A true box plot (full distribution) is a stretch goal deferred until a
     # query change returns raw per-bill durations instead of pre-aggregated
-    # median/p90 — see E05-S07F. Chart + table only for now.
+    # median/slowest-10% — see E05-S07F. Chart + table only for now.
     tab_bar, tab_table = st.tabs(["Bar", "Table"])
     with tab_bar:
         fig_bottleneck = px.bar(
             bottleneck_df,
             x="stage",
-            y=["median_days", "p90_days"],
+            y=["median_days", "slowest_10pct_days"],
             barmode="group",
             color_discrete_sequence=[BLUE, ORANGE],
             labels={"stage": "Stage", "value": "Days", "variable": ""},
             height=CHART_HEIGHT,
         )
+        # px.bar's `labels` dict doesn't relabel legend entries for a
+        # wide-form multi-y chart like this one — it names axes only, so the
+        # legend would otherwise show the raw column names verbatim.
+        legend_names = {"median_days": "Median", "slowest_10pct_days": "Slowest 10%"}
+        fig_bottleneck.for_each_trace(lambda t: t.update(name=legend_names.get(t.name, t.name)))
         st.plotly_chart(fig_bottleneck, use_container_width=True, key="bottleneck_bar")
     with tab_table:
         _show_table(
@@ -365,7 +370,7 @@ with row2_col1.container(border=True):
             {
                 "stage": "Stage",
                 "median_days": "Median days",
-                "p90_days": "90th percentile days",
+                "slowest_10pct_days": "90th percentile days",
                 "sample_size": "Sample size",
             },
         )

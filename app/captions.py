@@ -71,7 +71,7 @@ def describe_stage_bottleneck(bottleneck_df: pd.DataFrame) -> str:
     bottleneck = bottleneck_df.loc[bottleneck_df["median_days"].idxmax()]
     return (
         f"The {bottleneck['stage']} stage is the biggest bottleneck, taking a median of "
-        f"{bottleneck['median_days']:.0f} days to clear (up to {bottleneck['p90_days']:.0f} "
+        f"{bottleneck['median_days']:.0f} days to clear (up to {bottleneck['slowest_10pct_days']:.0f} "
         f"days for the slowest 10%), based on {int(bottleneck['sample_size'])} completed "
         f"transitions."
     )
