@@ -50,11 +50,16 @@ def _format_percent(value):
 
 
 def _show_table(df: pd.DataFrame, rename: dict, column_config: Optional[dict] = None):
+    # Pinned to CHART_HEIGHT so a table tab is the same size as its card's
+    # chart tabs — st.dataframe otherwise sizes itself to the row count,
+    # which made cards resize both across tabs and against each other (e.g.
+    # the 3-row bottleneck table vs. the 23-row prioritization table).
     st.dataframe(
         df.rename(columns=rename),
         use_container_width=True,
         hide_index=True,
         column_config=column_config,
+        height=CHART_HEIGHT,
     )
 
 
