@@ -275,7 +275,7 @@ def get_policy_areas(con) -> list[str]:
 
 
 def get_introduced_date_bounds(con) -> tuple[date, date]:
-    result = con.sql("SELECT MIN(introduced_date), MAX(introduced_date) FROM dim_bills").fetchone()
+    result = con.execute("SELECT MIN(introduced_date), MAX(introduced_date) FROM dim_bills").fetchone()
     return result[0], result[1]
 
 
