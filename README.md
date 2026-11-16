@@ -1,4 +1,3 @@
-# congressional-bills-analytics
 # Congressional Bill Analytics
 
 An end-to-end data pipeline that ingests official U.S. Congressional bill data every day, models it into a star schema with dbt, and serves a Streamlit dashboard. The dashboard shows how far bills get through the legislative process, and where they stall.
