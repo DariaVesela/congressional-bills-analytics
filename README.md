@@ -3,10 +3,11 @@
 An end-to-end data pipeline that ingests official U.S. Congressional bill data every day, models it into a star schema with dbt, and serves a Streamlit dashboard. The dashboard shows how far bills get through the legislative process, and where they stall.
 
 **Stack:** Python · DuckDB · dbt · GitHub Actions · Streamlit · Plotly
-
+**Link to Dashboard:** https://congressional-bills-analytics.streamlit.app/
 ## 📚 Project documentation
 
 This project is documented in detail in Notion:
+Find the Kanban board, design decisions and process as well as a changelog
 
 **→ [Congressional Bill Analytics: Project Documentation](https://app.notion.com/p/41863fb2df318063bcb4ca871cb1bc75)**
 
