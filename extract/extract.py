@@ -251,4 +251,3 @@ def load_to_duckdb(bills: list[Bill], db_path: str = "../warehouse.duckdb") -> N
 if __name__ == "__main__":
     bills = extract_all_bills(limit_per_type=50)
     load_to_duckdb(bills)
-    
