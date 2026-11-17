@@ -9,7 +9,7 @@ An end-to-end data pipeline that ingests official U.S. Congressional bill data e
 
 This project is documented in detail in Notion - find the Kanban board, design decisions and process as well as a changelog:
 
-** [Congressional Bill Analytics: Project Documentation](https://app.notion.com/p/41863fb2df318063bcb4ca871cb1bc75)**
+**[Congressional Bill Analytics: Project Documentation](https://app.notion.com/p/41863fb2df318063bcb4ca871cb1bc75)**
 
 The documentation includes:
 
