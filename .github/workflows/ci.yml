@@ -33,4 +33,6 @@ jobs:
         working-directory: dbt_project
         env:
           DBT_PROFILES_DIR: .
-        run: uv run dbt build --full-refresh
+        run: |
+          uv run dbt deps
+          uv run dbt build --full-refresh
