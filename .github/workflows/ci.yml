@@ -25,6 +25,9 @@ jobs:
       - name: Lint with ruff
         run: uv run ruff check .
 
+      - name: Run Python unit tests
+        run: uv run pytest
+
       - name: Run extraction and load (small sample)
         working-directory: extract
         run: uv run python -c "from extract import extract_all_bills, load_to_duckdb; load_to_duckdb(extract_all_bills(limit_per_type=5))"
